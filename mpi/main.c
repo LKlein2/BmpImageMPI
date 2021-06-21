@@ -27,6 +27,64 @@ typedef struct rgb{
 	unsigned char red;
 } RGB;
 
+void lerArquivo(RGB** img, CABECALHO header, FILE *file)
+{
+    int alinhamento;
+    unsigned char byte;
+
+	for(int i = 0 ; i < header.altura ; i++) {
+		alinhamento = (header.largura * 3) % 4;
+
+		if (alinhamento != 0){
+			alinhamento = 4 - alinhamento;
+		}
+
+		for(int j = 0 ; j < header.largura ; j++){
+			fread(&img[i][j], sizeof(RGB), 1, file);
+		}
+
+		for(int j = 0; j<alinhamento; j++){
+			fread(&byte, sizeof(unsigned char), 1, file);
+		}
+	}
+}
+
+void escreverArquivo(RGB** img, CABECALHO header, FILE *file)
+{
+    int alinhamento;
+    unsigned char byte;
+
+	for(int i = 0 ; i < header.altura ; i++) {
+		alinhamento = (header.largura * 3) % 4;
+
+		if (alinhamento != 0){
+			alinhamento = 4 - alinhamento;
+		}
+
+		for(int j = 0 ; j < header.largura ; j++){
+			fwrite(&img[i][j], sizeof(RGB), 1, file);
+		}
+
+		for(int j = 0; j<alinhamento; j++){
+			fwrite(&byte, sizeof(unsigned char), 1, file);
+		}
+	}
+}
+
+int * ordenarVetor(int* array, int size) {
+	for(int i = 0 ; i < size ; i++) {
+		for(int j = 0 ; j < size - 1 ; j++) {
+			if(array[j] > array[j + 1])
+			{
+				int temp = array[j];
+				array[j] = array[j + 1];
+				array[j + 1] = temp;
+			}
+		}
+	}
+	return array;
+}
+
 /*
 MAIN ---------------------------------------------------------------------
 */
@@ -36,10 +94,12 @@ int main(int argc, char **argv ){
     RGB **imgIn, **imgOut;
     int mascara;
 
+    printf("INICIANDO PROGRAMA...\n");
+
     argc = 4;
-    argv[1] = "c:\\temp\\borboletanova.bmp";
+    argv[1] = "c:\\temp\\borboleta.bmp";
     argv[2] = "c:\\temp\\lixo.bmp";
-    argv[3] = "3";
+    argv[3] = "7";
 
     //Testa o numero de argumentos
     if (argc != 4) {
@@ -68,16 +128,16 @@ int main(int argc, char **argv ){
     //Verifica tamanho da mascara
 	mascara = atoi(argv[3]);
     if (mascara != 3 && mascara != 5 && mascara != 7) {
-        printf("Mascara de %d não suportada!\n", mascara);
+        printf("Mascara de %d nÃ£o suportada!\n", mascara);
 		exit(0);
     }
 
-    //Lê o cabeçalho do arquivo de entrada
+    //Lï¿½ o cabeï¿½alho do arquivo de entrada
     printf("\nLENDO ARQUIVO DE ENTRADA...\n");
 	fread(&header, sizeof(CABECALHO), 1, fileIn);
 	printf("LEU ARQUIVO DE ENTRADA\n");
 
-	//escreve o cabeçalho do arquivo de saída
+	//escreve o cabeï¿½alho do arquivo de saï¿½da
 	printf("\nESCREVENDO ARQUIVO DE SAIDA...\n");
 	fwrite(&header, sizeof(CABECALHO), 1, fileOut);
     printf("ESCREVEU ARQUIVO DE SAIDA\n");
@@ -91,15 +151,82 @@ int main(int argc, char **argv ){
     printf("Tamanho da imagem: %u\n", header.tamanho_imagem);
     printf("\n");
 
+    //Aloca o espaÃ§o para os pixels da imagem
     printf("\nALOCANDO MEMORIA PARA ESTRUTURAS...\n");
-    //Aloca o espaço para os pixels da imagem
-    imgIn = (RGB **)malloc(header.altura * sizeof(RGB *));
-    imgOut   = (RGB **)malloc(header.altura * sizeof(RGB *));
+    imgIn  = (RGB **)malloc(header.altura * sizeof(RGB *));
+    imgOut = (RGB **)malloc(header.altura * sizeof(RGB *));
     for(int i = 0 ; i < header.altura ; i++) {
 		imgIn[i]  = (RGB *)malloc(header.largura * sizeof(RGB));
 		imgOut[i] = (RGB *)malloc(header.largura * sizeof(RGB));
 	}
 	printf("ALOCOU MEMORIA PARA ESTRUTURAS\n");
+
+	//LÃª a imagem original
+    printf("\nLENDO O ARQUIVO...\n");
+    lerArquivo(imgIn, header, fileIn);
+    printf("LEU O ARQUIVO\n");
+
+	printf("\nPROCESSANDO A NOVA IMAGEM...\n");
+	int sizeOfArray = (mascara * mascara);
+	int* arrayR = (int*)malloc(sizeOfArray * sizeof(int));
+	int* arrayG = (int*)malloc(sizeOfArray * sizeof(int));
+	int* arrayB = (int*)malloc(sizeOfArray * sizeof(int));
+
+	//Calcula o range
+	//Para mascara de 3: -1 atÃ© 1 entÃ£o range = 1
+	//Para mascara de 5: -2 atÃ© 2 entÃ£o range = 2
+	//Para mascara de 7: -3 atÃ© 3 entÃ£o range = 3
+	int range = (mascara - 1) / 2;
+	int mediana = sizeOfArray / 2;	
+
+	printf("Altura: %d\n", header.altura);
+	printf("Largura: %d\n", header.largura);
+
+	for (int i = 0; i < header.altura; i++)
+	{
+		for (int j = 0; j < header.largura; j++)
+		{
+			int posicaoArray = 0;
+
+			//Range eixo X
+			for (int k = -range; k <= range; k++)
+			{
+				int posAltura = i + k;
+				
+				//Range eixo Y
+				for (int l = -range; l <= range; l++)
+				{
+					int posLargura = j + l;
+
+					if (posAltura < 0 || posLargura < 0 || posAltura >= header.altura || posLargura >= header.largura) {
+						arrayR[posicaoArray] = 0;
+						arrayG[posicaoArray] = 0;
+						arrayB[posicaoArray] = 0;
+						posicaoArray++;
+					} else {
+						arrayR[posicaoArray] = imgIn[posAltura][posLargura].red;
+						arrayG[posicaoArray] = imgIn[posAltura][posLargura].green;
+						arrayB[posicaoArray] = imgIn[posAltura][posLargura].blue;
+						posicaoArray++;
+					}
+				}				
+			}		
+
+			imgOut[i][j].red   = ordenarVetor(arrayR, sizeOfArray)[mediana];
+			imgOut[i][j].green = ordenarVetor(arrayG, sizeOfArray)[mediana];
+			imgOut[i][j].blue  = ordenarVetor(arrayB, sizeOfArray)[mediana];
+		}
+	}
+
+	free(arrayR);
+	free(arrayG);
+	free(arrayB);
+	printf("PROCESSOU A NOVA IMAGEM...\n");
+
+	//Escreve a nova imagem
+	printf("\nESCREVENDO O NOVO ARQUIVO...\n");
+    escreverArquivo(imgOut, header, fileOut);
+    printf("ESCREVEU O NOVO ARQUIVO\n");
 
     //Fecha o arquivo de input
 	printf("\nFECHANDO ARQUIVO DE ENTRADA...\n");
